@@ -1,0 +1,135 @@
+<!--
+Copyright (c) 2016 The Ayla Project Authors.
+This code may only be used under the MIT style license found at http://aylaweb.github.io/LICENSE.txt
+The complete set of authors may be found at http://aylaweb.github.io/AUTHORS.txt
+The complete set of contributors may be found at http://aylaweb.github.io/CONTRIBUTORS.txt
+-->
+
+<link rel="import" href="../polymer/polymer.html">
+
+<script>
+    (function () {
+        function EventQueue() {
+            this.q = [];
+            this.add = function (ev) {
+                this.q.push(ev);
+            };
+            var i, j;
+            this.call = function () {
+                for (i = 0, j = this.q.length; i < j; i++) {
+                    this.q[i].call();
+                }
+            };
+        }
+        ;
+        Ayla = window.Ayla || {};
+        Ayla.VipResizeSensor = {
+            lastWidth: 0,
+            lastHeight: 0,
+            attached: function ()
+            {
+                this.async(function () {
+                    this.attachResizeEvent(this._dispatch.bind(this));
+                    this.setObserver();
+                }.bind(this), 1000);
+
+            },
+            //   this.attachResizeEvent(this._dispatch.bind(this));
+
+            setObserver: function () {
+                var observer = new MutationObserver(function (mutations) {
+                    mutations.forEach(function (mutation) {
+                        // Was it the style attribute that changed? (Maybe a classname or other attribute change could do this too? You might want to remove the attribute condition) Is display set to 'none'?
+                        if (window.getComputedStyle(this).getPropertyValue('display') !== 'none') {
+                            //  alert('#blocker\'s style just changed, and its display value is no longer \'none\'');
+                            this._resetSensor();
+                            this.changed();
+                        }
+                    }.bind(this));
+                }.bind(this));
+                var config = {attributes: true, attributeFilter: ['class']};
+
+                observer.observe(this, config);
+            },
+            _dispatch: function () {
+                this.fire("resize");
+            },
+            attachResizeEvent: function (resized) {
+                if (!this.resizedAttached) {
+                    this.resizedAttached = new EventQueue();
+                    this.resizedAttached.add(resized);
+                } else if (this.resizedAttached) {
+                    this.resizedAttached.add(resized);
+                    return;
+                }
+
+                var resizeSensor = document.createElement('div');
+                resizeSensor.setAttribute('id', "resize_sensor");
+                resizeSensor.className = 'resize-sensor';
+                var style = 'position: absolute; left: 0; top: 0; right: 0; bottom: 0; overflow: scroll; z-index: -1; visibility: hidden;';
+                var styleChild = 'position: absolute; left: 0; top: 0;';
+                resizeSensor.style.cssText = style;
+                resizeSensor.innerHTML =
+                        '<div class="resize-sensor-expand" style="' + style + '">' +
+                        '<div style="' + styleChild + '"></div>' +
+                        '</div>' +
+                        '<div class="resize-sensor-shrink" style="' + style + '">' +
+                        '<div style="' + styleChild + ' width: 200%; height: 200%"></div>' +
+                        '</div>';
+                Polymer.dom(this.root).appendChild(resizeSensor);
+                if (!{fixed: 1, absolute: 1}[getComputedStyle(this, 'position')]) {
+                    this.style.position = 'relative';
+                }
+                this._resetSensor();
+                this.addEvent(Polymer.dom(this.root).querySelector('#resize_sensor').childNodes[0], 'scroll', function () {
+                    if (this.offsetWidth > this.lastWidth || this.offsetHeight > this.lastHeight) {
+                        this.changed();
+                    }
+                    this._resetSensor();
+                }.bind(this));
+                this.addEvent(Polymer.dom(this.root).querySelector('#resize_sensor').childNodes[1], 'scroll', function () {
+                    if (this.offsetWidth < this.lastWidth || this.offsetHeight < this.lastHeight) {
+                        this.changed();
+                    }
+                    this._resetSensor();
+                }.bind(this));
+            },
+            _resetSensor: function () {
+                var expand = Polymer.dom(this.root).querySelector('#resize_sensor').childNodes[0];
+                var expandChild = expand.childNodes[0];
+                var shrink = Polymer.dom(this.root).querySelector('#resize_sensor').childNodes[1];
+                var shrinkChild = shrink.childNodes[0];
+                expandChild.style.width = expand.offsetWidth + 10 + 'px';
+                expandChild.style.height = expand.offsetHeight + 10 + 'px';
+                expand.scrollLeft = expand.scrollWidth;
+                expand.scrollTop = expand.scrollHeight;
+                shrink.scrollLeft = shrink.scrollWidth;
+                shrink.scrollTop = shrink.scrollHeight;
+                this.lastWidth = this.offsetWidth;
+                this.lastHeight = this.offsetHeight;
+            },
+            addEvent: function (el, name, cb) {
+                if (el.attachEvent) {
+                    el.attachEvent('on' + name, cb);
+                } else {
+                    el.addEventListener(name, cb);
+                }
+            },
+            changed: function () {
+                if (this.resizedAttached) {
+                    this.resizedAttached.call();
+                }
+            },
+            getComputedStyle: function (element, prop) {
+                if (element.currentStyle) {
+                    return element.currentStyle[prop];
+                } else if (window.getComputedStyle) {
+                    return window.getComputedStyle(element, null).getPropertyValue(prop);
+                } else {
+                    return element.style[prop];
+                }
+            }
+
+        };
+    })();
+</script>
